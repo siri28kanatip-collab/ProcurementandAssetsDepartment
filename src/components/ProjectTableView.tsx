@@ -26,6 +26,7 @@ import {
   HelpCircle,
   ChevronDown,
   Layers,
+  Eye,
 } from 'lucide-react';
 
 interface ProjectTableViewProps {
@@ -97,6 +98,7 @@ export const ProjectTableView: React.FC<ProjectTableViewProps> = ({
   });
 
   const canEdit = currentUser.role === 'officer';
+  const isExecutive = currentUser.role === 'executive';
 
   return (
     <div className="space-y-4">
@@ -247,9 +249,13 @@ export const ProjectTableView: React.FC<ProjectTableViewProps> = ({
               ฝ่ายพัสดุและทรัพย์สิน เทศบาลเมืองมหาสารคาม
             </span>
           </div>
-          {canEdit && (
+          {canEdit ? (
             <span className="text-[11px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded font-medium">
               สิทธิ์บันทึก/แก้ไขข้อมูลประจำวัน
+            </span>
+          ) : (
+            <span className="text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-medium">
+              สิทธิ์ดูข้อมูลอย่างเดียว
             </span>
           )}
         </div>
@@ -288,15 +294,17 @@ export const ProjectTableView: React.FC<ProjectTableViewProps> = ({
                 <th scope="col" className="py-2.5 px-3 text-right min-w-[110px]">
                   งบประมาณคงเหลือ
                 </th>
-                <th scope="col" className="py-2.5 px-3 text-center w-24">
-                  จัดการ
-                </th>
+                {!isExecutive && (
+                  <th scope="col" className="py-2.5 px-3 text-center w-24">
+                    จัดการ
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-500">
+                  <td colSpan={isExecutive ? 9 : 10} className="py-12 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <HelpCircle className="w-6 h-6 text-slate-400" />
                       <span>ไม่พบข้อมูลโครงการตามเงื่อนไขที่เลือก</span>
@@ -490,26 +498,28 @@ export const ProjectTableView: React.FC<ProjectTableViewProps> = ({
                       </td>
 
                       {/* Action buttons */}
-                      <td className="py-3 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => onEditProject(project)}
-                            className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition cursor-pointer"
-                            title={canEdit ? 'แก้ไขข้อมูล' : 'ดูรายละเอียด'}
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          {canEdit && (
+                      {!isExecutive && (
+                        <td className="py-3 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
                             <button
-                              onClick={() => onDeleteProject(project.id, project.name)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition cursor-pointer"
-                              title="ลบโครงการ"
+                              onClick={() => onEditProject(project)}
+                              className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition cursor-pointer"
+                              title={canEdit ? 'แก้ไขข้อมูล' : 'ดูรายละเอียด (ดูอย่างเดียว)'}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              {canEdit ? <Edit2 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                             </button>
-                          )}
-                        </div>
-                      </td>
+                            {canEdit && (
+                              <button
+                                onClick={() => onDeleteProject(project.id, project.name)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition cursor-pointer"
+                                title="ลบโครงการ"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })

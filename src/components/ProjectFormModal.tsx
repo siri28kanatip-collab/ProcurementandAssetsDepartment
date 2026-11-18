@@ -33,6 +33,7 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   currentUser,
 }) => {
   const isEditing = Boolean(initialProject);
+  const isReadOnly = currentUser.role !== 'officer';
 
   const [fiscalYear, setFiscalYear] = useState<'2570' | 'ก่อนปี 2570'>('2570');
   const [itemType, setItemType] = useState<ItemType>('โครงการ');
@@ -136,10 +137,11 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     contractAdjust
   );
 
-  if (!isOpen) return null;
+  if (!isOpen || (isReadOnly && !initialProject)) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     if (!name.trim()) {
       setError('กรุณากรอกรายการ (ชื่อโครงการหรือครุภัณฑ์)');
       return;
@@ -191,7 +193,11 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                {isEditing ? 'แก้ไขข้อมูลโครงการ / ครุภัณฑ์' : 'บันทึกข้อมูลโครงการประจำวัน (งบลงทุน)'}
+                {isReadOnly
+                  ? 'รายละเอียดโครงการ / ครุภัณฑ์ (ดูอย่างเดียว)'
+                  : isEditing
+                  ? 'แก้ไขข้อมูลโครงการ / ครุภัณฑ์'
+                  : 'บันทึกข้อมูลโครงการประจำวัน (งบลงทุน)'}
               </h3>
               <p className="text-xs text-slate-500">
                 ฝ่ายพัสดุและทรัพย์สิน กองคลัง เทศบาลเมืองมหาสารคาม
@@ -214,6 +220,8 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               <span>{error}</span>
             </div>
           )}
+
+          <fieldset disabled={isReadOnly} className="space-y-6">
 
           {/* Section 1: Classification & Name */}
           <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200 space-y-4">
@@ -563,23 +571,36 @@ export const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
               />
             </div>
           </div>
+          </fieldset>
 
           {/* Form Actions */}
           <div className="pt-2 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-sm flex items-center gap-1.5 cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>{isEditing ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลโครงการ'}</span>
-            </button>
+            {isReadOnly ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 text-xs font-medium text-white bg-slate-700 hover:bg-slate-800 rounded-lg transition cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isEditing ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลโครงการ'}</span>
+                </button>
+              </>
+            )}
           </div>
         </form>
       </div>

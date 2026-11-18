@@ -147,8 +147,12 @@ export default function App() {
     setActiveView('summary');
   };
 
+  const canEdit = currentUser?.role === 'officer';
+  const isExecutive = currentUser?.role === 'executive';
+
   // Handle Project Save (Create / Update)
   const handleSaveProject = async (project: ProjectItem, isNew: boolean) => {
+    if (!canEdit) return;
     try {
       if (isNew) {
         setProjects((prev) => [project, ...prev]);
@@ -165,6 +169,7 @@ export default function App() {
 
   // Handle Project Delete
   const handleDeleteProject = async (id: string, name: string) => {
+    if (!canEdit) return;
     if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบโครงการ:\n"${name}"\nออกจากฐานข้อมูล?`)) {
       try {
         setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -178,6 +183,7 @@ export default function App() {
 
   // Handle Bulk Excel Import
   const handleImportComplete = async (importedProjects: ProjectItem[], mode: 'append' | 'replace') => {
+    if (isExecutive || !currentUser) return;
     try {
       const updated = await bulkSaveProjects(importedProjects, mode);
       setProjects(updated);
@@ -190,8 +196,6 @@ export default function App() {
       setFatalError(err instanceof Error ? err : new Error(String(err)));
     }
   };
-
-  const isExecutive = currentUser?.role === 'executive';
 
   // Ensure Executive cannot remain on restricted views
   useEffect(() => {
@@ -305,19 +309,8 @@ export default function App() {
 
             {/* Right Action & User Profile Zone */}
             <div className="flex items-center gap-3 shrink-0">
-              {!isExecutive && (
-                <button
-                  onClick={() => setActiveView('excel')}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/90 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
-                  title="เปิดเมนูระบบดาวน์โหลดและนำเข้าข้อมูลเป็น Excel"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>เมนู Excel</span>
-                </button>
-              )}
-
               {/* User Role Badge */}
-              <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
+              <div className="flex items-center gap-2">
                 <div className="text-right hidden sm:block">
                   <div className="text-xs font-semibold text-white">
                     {currentUser.username}
@@ -472,6 +465,7 @@ export default function App() {
                 selectedFiscalYear={selectedFiscalYear}
                 onSelectFiscalYear={(fy) => setSelectedFiscalYear(fy)}
                 onAddNewProject={() => {
+                  if (!canEdit) return;
                   setEditingProject(null);
                   setIsFormModalOpen(true);
                 }}
@@ -530,15 +524,8 @@ export default function App() {
 
       {/* Footer */}
       <footer className="no-print bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div>
-            © ๒๕๗๐ ฝ่ายพัสดุและทรัพย์สิน กองคลัง เทศบาลเมืองมหาสารคาม จังหวัดมหาสารคาม
-          </div>
-          <div className="flex items-center gap-3 text-slate-400">
-            <span>ระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างฯ พ.ศ. ๒๕๖๐</span>
-            <span>·</span>
-            <span>โทร. ๐-๔๓๗๑-๑๑๗๘</span>
-          </div>
+        <div className="max-w-7xl mx-auto">
+          © ๒๕๗๐ ฝ่ายพัสดุและทรัพย์สิน กองคลัง เทศบาลเมืองมหาสารคาม จังหวัดมหาสารคาม
         </div>
       </footer>
     </div>
