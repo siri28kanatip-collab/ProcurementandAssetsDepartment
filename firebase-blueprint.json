@@ -1,0 +1,269 @@
+{
+  "entities": {
+    "ProcurementProject": {
+      "title": "ProcurementProject",
+      "description": "Investment budget project or equipment procurement record for Mahasarakham Town Municipality Finance Department.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique project identifier matching the document ID."
+        },
+        "fiscalYear": {
+          "type": "string",
+          "enum": ["2570", "ก่อนปี 2570"],
+          "maxLength": 20,
+          "description": "Fiscal year bucket."
+        },
+        "itemType": {
+          "type": "string",
+          "enum": ["โครงการ", "ครุภัณฑ์"],
+          "maxLength": 20,
+          "description": "Procurement category (Project or Equipment)."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Project or equipment title."
+        },
+        "allocatedBudget": {
+          "type": "number",
+          "description": "Allocated budget amount in THB."
+        },
+        "transferBudget": {
+          "type": "number",
+          "description": "Budget transfer adjustment (+/-) in THB."
+        },
+        "contractNo": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Official contract number."
+        },
+        "contractor": {
+          "type": "string",
+          "maxLength": 250,
+          "description": "Contracted vendor or company name."
+        },
+        "contractAmount": {
+          "type": "number",
+          "description": "Signed contract amount in THB."
+        },
+        "contractAdjust": {
+          "type": "number",
+          "description": "Contract amount adjustment (+/-) in THB."
+        },
+        "startDate": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Contract start date (YYYY-MM-DD)."
+        },
+        "endDate": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Contract end date (YYYY-MM-DD)."
+        },
+        "guaranteeAmount": {
+          "type": "number",
+          "description": "Performance guarantee amount in THB."
+        },
+        "guaranteeReturnYears": {
+          "type": "number",
+          "description": "Warranty/guarantee duration in years."
+        },
+        "guaranteeDueDate": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Auto-calculated guarantee refund due date."
+        },
+        "guaranteeStatus": {
+          "type": "string",
+          "enum": ["ยังไม่คืนเงิน", "คืนเงินแล้ว"],
+          "maxLength": 30,
+          "description": "Performance guarantee refund status."
+        },
+        "deliveryDate": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Work delivery date."
+        },
+        "acceptanceDate": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Work acceptance inspection date."
+        },
+        "projectStatus": {
+          "type": "string",
+          "enum": [
+            "ยังไม่เริ่มดำเนินการ",
+            "อยู่ระหว่างการจัดทำ TOR /ราคากลาง",
+            "อยู่ระหว่างประกาศจัดซื้อจัดจ้าง",
+            "อยู่ระหว่างบริหารสัญญา (1.ส่งมอบพื้นที่ 2.ผู้รับจ้างเข้าดำเนินการ 3. ส่งมอบงาน 4. ตรวจรับพัสดุ)",
+            "ดำเนินการแล้วเสร็จ"
+          ],
+          "maxLength": 150,
+          "description": "Current procurement execution stage."
+        },
+        "disbursementStatus": {
+          "type": "string",
+          "enum": ["อยู่ระหว่างดำเนินการ", "ชำระเงินแล้ว"],
+          "maxLength": 50,
+          "description": "Budget disbursement status."
+        },
+        "budgetSource": {
+          "type": "string",
+          "enum": [
+            "เงินงบประมาณ",
+            "เงินงบประมาณค้างจ่าย",
+            "เงินอุดหนุนระบุวัตถุประสงค์เฉพาะกิจ",
+            "เงินอุดหนุนระบุวัตถุประสงค์เฉพาะกิจ ค้างจ่าย",
+            "เงินสะสม",
+            "เงินกู้"
+          ],
+          "maxLength": 80,
+          "description": "One of the six municipal budget sources."
+        },
+        "remainingBudget": {
+          "type": "number",
+          "description": "Calculated remaining budget in THB."
+        },
+        "remarks": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Additional progress notes or remarks."
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the creator/owner."
+        },
+        "memberUids": {
+          "type": "array",
+          "description": "Bounded list (1-20) of authorized Firebase Auth UIDs who can query/access this record."
+        },
+        "updatedBy": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "Display label of the user who last modified the record."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-update timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "fiscalYear",
+        "itemType",
+        "name",
+        "allocatedBudget",
+        "transferBudget",
+        "contractNo",
+        "contractor",
+        "contractAmount",
+        "contractAdjust",
+        "startDate",
+        "endDate",
+        "guaranteeAmount",
+        "guaranteeReturnYears",
+        "guaranteeDueDate",
+        "guaranteeStatus",
+        "deliveryDate",
+        "acceptanceDate",
+        "projectStatus",
+        "disbursementStatus",
+        "budgetSource",
+        "remainingBudget",
+        "remarks",
+        "ownerUid",
+        "memberUids",
+        "updatedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private authenticated user profile document containing user PII isolated per UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID matching the document ID."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Verified user email address."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 150,
+          "description": "User display name."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-update timestamp."
+        }
+      },
+      "required": ["uid", "email", "displayName", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted administrator registry managed only by verified admins.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the administrator."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Verified administrator email."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/ProcurementandAssetsDepartment/{projectId}": {
+      "schema": { "$ref": "#/entities/ProcurementProject" },
+      "description": "Primary collection storing all municipal procurement and asset investment projects."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile PII isolated strictly to the owning user or verified admins."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Trusted administrator lookup documents."
+    }
+  }
+}

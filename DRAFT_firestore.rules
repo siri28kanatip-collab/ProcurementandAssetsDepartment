@@ -1,0 +1,251 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================
+    // Global Hardened Primitives
+    // =========================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'siri28kanatip@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() ||
+        (isVerifiedUser() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    // =========================================================
+    // Entity Validation Blueprints (Synced with firebase-blueprint.json)
+    // =========================================================
+    function isValidProcurementProject(data) {
+      return data.keys().hasAll([
+          'id', 'fiscalYear', 'itemType', 'name', 'allocatedBudget', 'transferBudget',
+          'contractNo', 'contractor', 'contractAmount', 'contractAdjust',
+          'startDate', 'endDate', 'guaranteeAmount', 'guaranteeReturnYears',
+          'guaranteeDueDate', 'guaranteeStatus', 'deliveryDate', 'acceptanceDate',
+          'projectStatus', 'disbursementStatus', 'budgetSource', 'remainingBudget',
+          'remarks', 'ownerUid', 'memberUids', 'updatedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'fiscalYear', 'itemType', 'name', 'allocatedBudget', 'transferBudget',
+          'contractNo', 'contractor', 'contractAmount', 'contractAdjust',
+          'startDate', 'endDate', 'guaranteeAmount', 'guaranteeReturnYears',
+          'guaranteeDueDate', 'guaranteeStatus', 'deliveryDate', 'acceptanceDate',
+          'projectStatus', 'disbursementStatus', 'budgetSource', 'remainingBudget',
+          'remarks', 'ownerUid', 'memberUids', 'updatedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.fiscalYear is string && data.fiscalYear.size() <= 20 &&
+        data.fiscalYear in ['2570', 'ก่อนปี 2570'] &&
+        data.itemType is string && data.itemType.size() <= 20 &&
+        data.itemType in ['โครงการ', 'ครุภัณฑ์'] &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 500 &&
+        data.allocatedBudget is number && data.allocatedBudget >= 0 &&
+        data.transferBudget is number &&
+        data.contractNo is string && data.contractNo.size() <= 120 &&
+        data.contractor is string && data.contractor.size() <= 250 &&
+        data.contractAmount is number && data.contractAmount >= 0 &&
+        data.contractAdjust is number &&
+        data.startDate is string && data.startDate.size() <= 40 &&
+        data.endDate is string && data.endDate.size() <= 40 &&
+        data.guaranteeAmount is number && data.guaranteeAmount >= 0 &&
+        data.guaranteeReturnYears is number && data.guaranteeReturnYears >= 0 && data.guaranteeReturnYears <= 50 &&
+        data.guaranteeDueDate is string && data.guaranteeDueDate.size() <= 40 &&
+        data.guaranteeStatus is string && data.guaranteeStatus.size() <= 30 &&
+        data.guaranteeStatus in ['ยังไม่คืนเงิน', 'คืนเงินแล้ว'] &&
+        data.deliveryDate is string && data.deliveryDate.size() <= 40 &&
+        data.acceptanceDate is string && data.acceptanceDate.size() <= 40 &&
+        data.projectStatus is string && data.projectStatus.size() <= 150 &&
+        data.projectStatus in [
+          'ยังไม่เริ่มดำเนินการ',
+          'อยู่ระหว่างการจัดทำ TOR /ราคากลาง',
+          'อยู่ระหว่างประกาศจัดซื้อจัดจ้าง',
+          'อยู่ระหว่างบริหารสัญญา (1.ส่งมอบพื้นที่ 2.ผู้รับจ้างเข้าดำเนินการ 3. ส่งมอบงาน 4. ตรวจรับพัสดุ)',
+          'ดำเนินการแล้วเสร็จ'
+        ] &&
+        data.disbursementStatus is string && data.disbursementStatus.size() <= 50 &&
+        data.disbursementStatus in ['อยู่ระหว่างดำเนินการ', 'ชำระเงินแล้ว'] &&
+        data.budgetSource is string && data.budgetSource.size() <= 80 &&
+        data.budgetSource in [
+          'เงินงบประมาณ',
+          'เงินงบประมาณค้างจ่าย',
+          'เงินอุดหนุนระบุวัตถุประสงค์เฉพาะกิจ',
+          'เงินอุดหนุนระบุวัตถุประสงค์เฉพาะกิจ ค้างจ่าย',
+          'เงินสะสม',
+          'เงินกู้'
+        ] &&
+        data.remainingBudget is number && data.remainingBudget >= 0 &&
+        data.remarks is string && data.remarks.size() <= 1000 &&
+        isValidId(data.ownerUid) &&
+        data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 20 &&
+        data.memberUids[0] is string && isValidId(data.memberUids[0]) &&
+        data.updatedBy is string && data.updatedBy.size() <= 150 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.displayName is string && data.displayName.size() <= 150 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.createdAt is timestamp;
+    }
+
+    // =========================================================
+    // Collection: /ProcurementandAssetsDepartment/{projectId}
+    // =========================================================
+    match /ProcurementandAssetsDepartment/{projectId} {
+      allow get: if isVerifiedUser() && isValidId(projectId) && (
+        isAdmin() ||
+        existing().ownerUid == request.auth.uid ||
+        request.auth.uid in existing().memberUids
+      );
+
+      allow list: if isVerifiedUser() && (
+        isBootstrappedAdmin() ||
+        existing().ownerUid == request.auth.uid ||
+        request.auth.uid in existing().memberUids
+      );
+
+      allow create: if isVerifiedUser() &&
+        isValidId(projectId) &&
+        isValidProcurementProject(incoming()) &&
+        incoming().id == projectId &&
+        incoming().ownerUid == request.auth.uid &&
+        request.auth.uid in incoming().memberUids &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() && isValidId(projectId) && isValidProcurementProject(incoming()) && (
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            (existing().ownerUid == request.auth.uid || request.auth.uid in existing().memberUids) &&
+            (
+              // Action 1: Active Project Update (before completion)
+              (
+                existing().projectStatus != 'ดำเนินการแล้วเสร็จ' &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'fiscalYear', 'itemType', 'name', 'allocatedBudget', 'transferBudget',
+                  'contractNo', 'contractor', 'contractAmount', 'contractAdjust',
+                  'startDate', 'endDate', 'guaranteeAmount', 'guaranteeReturnYears',
+                  'guaranteeDueDate', 'guaranteeStatus', 'deliveryDate', 'acceptanceDate',
+                  'projectStatus', 'disbursementStatus', 'budgetSource', 'remainingBudget',
+                  'remarks', 'memberUids', 'updatedBy', 'updatedAt'
+                ])
+              ) ||
+              // Action 2: Post-Completion Closure (only guarantee / disbursement / remarks until fully closed)
+              (
+                existing().projectStatus == 'ดำเนินการแล้วเสร็จ' &&
+                (existing().guaranteeStatus != 'คืนเงินแล้ว' || existing().disbursementStatus != 'ชำระเงินแล้ว') &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'guaranteeStatus', 'disbursementStatus', 'remarks', 'updatedBy', 'updatedAt'
+                ])
+              )
+            )
+          )
+        )
+      );
+
+      allow delete: if isVerifiedUser() && isValidId(projectId) && (
+        isAdmin() ||
+        existing().ownerUid == request.auth.uid
+      );
+    }
+
+    // =========================================================
+    // Collection: /users/{userId} (Isolated PII)
+    // =========================================================
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      allow list: if isBootstrappedAdmin();
+
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().email == request.auth.token.email &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser() && isValidId(userId) && isValidUserProfile(incoming()) && (
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            incoming().email == existing().email &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])
+          )
+        )
+      );
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // =========================================================
+    // Collection: /admins/{userId}
+    // =========================================================
+    match /admins/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      allow list: if isBootstrappedAdmin();
+
+      allow create: if isAdmin() &&
+        isValidId(userId) &&
+        isValidAdminRecord(incoming()) &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time;
+
+      allow update: if false;
+
+      allow delete: if isAdmin() && isValidId(userId) && userId != request.auth.uid;
+    }
+  }
+}
