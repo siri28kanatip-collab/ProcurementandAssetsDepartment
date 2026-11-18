@@ -26,7 +26,7 @@ import {
   RefreshCw,
   Database,
   CheckCircle2,
-  AlertCircle,
+  Cloud,
 } from 'lucide-react';
 
 export default function App() {
@@ -34,7 +34,6 @@ export default function App() {
     firebaseUser,
     isAuthReady,
     isSigningIn,
-    authError,
     signInWithGoogle,
   } = useFirebase();
 
@@ -77,12 +76,17 @@ export default function App() {
     }, 3500);
   };
 
-  // Manual refresh from Firestore
-  const loadData = useCallback(async () => {
-    if (!firebaseUser || !firebaseUser.emailVerified) return;
-    setIsSyncing(true);
+  const hasVerifiedFirebaseAuth = Boolean(
+    isAuthReady && firebaseUser && firebaseUser.emailVerified
+  );
+
+  // Load projects manually or when Firebase Auth is not yet connected
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setIsLoading(true);
+    else setIsSyncing(true);
+
     try {
-      const data = await fetchProjects(firebaseUser);
+      const data = await fetchProjects(hasVerifiedFirebaseAuth ? firebaseUser : null);
       setProjects(data);
       const timeStr = new Date().toLocaleTimeString('th-TH', {
         hour: '2-digit',
@@ -96,36 +100,44 @@ export default function App() {
       setIsLoading(false);
       setIsSyncing(false);
     }
-  }, [firebaseUser]);
+  }, [hasVerifiedFirebaseAuth, firebaseUser]);
 
-  // Attach real-time Firestore onSnapshot listener only when Auth is ready and user is authenticated
+  // Attach real-time Firestore onSnapshot listener ONLY when Firebase Auth is ready & verified;
+  // otherwise load via server/local storage immediately so users never need Google Login on the Login screen
   useEffect(() => {
-    if (!currentUser || !isAuthReady || !firebaseUser || !firebaseUser.emailVerified) {
-      return;
+    if (!currentUser) return;
+
+    if (hasVerifiedFirebaseAuth && firebaseUser) {
+      setIsLoading(true);
+      const unsubscribe = subscribeToProjects(
+        firebaseUser,
+        (items) => {
+          setProjects(items);
+          const timeStr = new Date().toLocaleTimeString('th-TH', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          });
+          setLastSyncTime(timeStr);
+          setIsLoading(false);
+          setIsSyncing(false);
+        },
+        (err) => {
+          setIsLoading(false);
+          setFatalError(err);
+        }
+      );
+      return () => unsubscribe();
     }
 
-    setIsLoading(true);
-    const unsubscribe = subscribeToProjects(
-      firebaseUser,
-      (items) => {
-        setProjects(items);
-        const timeStr = new Date().toLocaleTimeString('th-TH', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        });
-        setLastSyncTime(timeStr);
-        setIsLoading(false);
-        setIsSyncing(false);
-      },
-      (err) => {
-        setIsLoading(false);
-        setFatalError(err);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [currentUser, isAuthReady, firebaseUser]);
+    if (isAuthReady) {
+      loadData(false);
+      const interval = setInterval(() => {
+        loadData(true);
+      }, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [currentUser, isAuthReady, hasVerifiedFirebaseAuth, firebaseUser, loadData]);
 
   // Handle Logout
   const handleLogout = () => {
@@ -138,12 +150,14 @@ export default function App() {
   // Handle Project Save (Create / Update)
   const handleSaveProject = async (project: ProjectItem, isNew: boolean) => {
     try {
-      await saveProject(project, isNew, editingProject);
       if (isNew) {
-        showToast(`บันทึกโครงการ "${project.name}" ลง Firebase เรียบร้อยแล้ว`);
+        setProjects((prev) => [project, ...prev]);
+        showToast(`บันทึกโครงการ "${project.name}" เรียบร้อยแล้ว`);
       } else {
-        showToast(`แก้ไขข้อมูลโครงการ "${project.name}" ใน Firebase เรียบร้อยแล้ว`);
+        setProjects((prev) => prev.map((p) => (p.id === project.id ? project : p)));
+        showToast(`แก้ไขข้อมูลโครงการ "${project.name}" เรียบร้อยแล้ว`);
       }
+      await saveProject(project, isNew, editingProject);
     } catch (err) {
       setFatalError(err instanceof Error ? err : new Error(String(err)));
     }
@@ -151,10 +165,11 @@ export default function App() {
 
   // Handle Project Delete
   const handleDeleteProject = async (id: string, name: string) => {
-    if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบโครงการ:\n"${name}"\nออกจากฐานข้อมูล Firebase?`)) {
+    if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบโครงการ:\n"${name}"\nออกจากฐานข้อมูล?`)) {
       try {
+        setProjects((prev) => prev.filter((p) => p.id !== id));
+        showToast(`ลบโครงการ "${name}" เรียบร้อยแล้ว`);
         await removeProject(id);
-        showToast(`ลบโครงการ "${name}" ออกจากฐานข้อมูลเรียบร้อยแล้ว`);
       } catch (err) {
         setFatalError(err instanceof Error ? err : new Error(String(err)));
       }
@@ -189,7 +204,7 @@ export default function App() {
     throw fatalError;
   }
 
-  // IF NOT AUTHENTICATED -> ALWAYS SHOW LOGIN SCREEN AS SPECIFIED
+  // IF NOT AUTHENTICATED -> SHOW CLEAN LOGIN SCREEN (NO GOOGLE REQUIREMENT)
   if (!currentUser) {
     return (
       <LoginScreen
@@ -198,65 +213,6 @@ export default function App() {
           setActiveView('summary');
         }}
       />
-    );
-  }
-
-  // If role session exists from sessionStorage but Firebase Google Auth is not yet connected
-  if (!isAuthReady) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center gap-3 font-sans">
-        <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
-        <p className="text-xs font-medium text-slate-600">
-          กำลังเตรียมการเชื่อมต่อฐานข้อมูล Firebase...
-        </p>
-      </div>
-    );
-  }
-
-  if (!firebaseUser || !firebaseUser.emailVerified) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans">
-        <div className="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl p-6 text-white space-y-4 shadow-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400">
-              <Database className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold">เชื่อมต่อบัญชี Google (Firebase)</h2>
-              <p className="text-xs text-slate-400">
-                ฐานข้อมูล: {PROJECTS_COLLECTION}
-              </p>
-            </div>
-          </div>
-
-          <p className="text-xs text-slate-300 leading-relaxed">
-            กรุณาเชื่อมต่อบัญชี Google ที่ยืนยันอีเมลแล้ว เพื่อรับสิทธิ์อ่านและบันทึกข้อมูลแบบเรียลไทม์กับฐานข้อมูล Firebase
-          </p>
-
-          {authError && (
-            <div className="p-3 rounded-lg bg-red-950/60 border border-red-800 text-xs text-red-200 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <span>{authError}</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 pt-2">
-            <button
-              onClick={() => signInWithGoogle()}
-              disabled={isSigningIn}
-              className="flex-1 py-2.5 px-4 bg-amber-400 hover:bg-amber-300 text-slate-900 font-semibold text-xs rounded-lg transition cursor-pointer disabled:opacity-50"
-            >
-              {isSigningIn ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อบัญชี Google'}
-            </button>
-            <button
-              onClick={handleLogout}
-              className="py-2.5 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition cursor-pointer"
-            >
-              กลับหน้าเข้าสู่ระบบ
-            </button>
-          </div>
-        </div>
-      </div>
     );
   }
 
@@ -433,15 +389,19 @@ export default function App() {
         </div>
       </header>
 
-      {/* Sub-bar: Firebase database connection & quick refresh */}
+      {/* Sub-bar: Database connection & quick refresh */}
       <div className="no-print bg-white border-b border-slate-200 py-1.5 px-4 sm:px-6 lg:px-8 text-[11px] text-slate-500">
         <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Database className="w-3.5 h-3.5 text-indigo-600" />
             <span className="font-medium text-slate-700">
-              ฐานข้อมูล Firebase ({PROJECTS_COLLECTION}):
+              ฐานข้อมูล {PROJECTS_COLLECTION}:
             </span>
-            <span>ซิงค์ข้อมูลเรียลไทม์ ({projects.length} โครงการในระบบ)</span>
+            <span>
+              {hasVerifiedFirebaseAuth
+                ? `ซิงค์ Firebase เรียลไทม์ (${projects.length} โครงการในระบบ)`
+                : `จัดเก็บและซิงค์ข้อมูลอัตโนมัติ (${projects.length} โครงการในระบบ)`}
+            </span>
             {isSyncing && (
               <span className="text-indigo-600 flex items-center gap-1 font-medium">
                 <RefreshCw className="w-3 h-3 animate-spin" />
@@ -455,13 +415,23 @@ export default function App() {
 
           <div className="flex items-center gap-3">
             <span className="text-slate-600">
-              ผู้ใช้งาน: <strong className="text-slate-900">{currentUser.displayName}</strong>{' '}
-              <span className="text-slate-400">({firebaseUser.email})</span>
+              ผู้ใช้งาน: <strong className="text-slate-900">{currentUser.displayName}</strong>
             </span>
+            {!hasVerifiedFirebaseAuth && isAuthReady && (
+              <button
+                onClick={() => signInWithGoogle()}
+                disabled={isSigningIn}
+                className="text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                title="เชื่อมต่อบัญชี Google เพื่อซิงค์ข้อมูลขึ้น Firebase Cloud"
+              >
+                <Cloud className="w-3 h-3" />
+                <span>{isSigningIn ? 'กำลังซิงค์...' : 'ซิงค์ Firebase Cloud'}</span>
+              </button>
+            )}
             <button
-              onClick={loadData}
+              onClick={() => loadData(false)}
               className="hover:text-indigo-600 transition flex items-center gap-1 cursor-pointer"
-              title="ดึงข้อมูลล่าสุดจาก Firebase"
+              title="ดึงข้อมูลล่าสุดจากฐานข้อมูล"
             >
               <RefreshCw className="w-3 h-3" />
               <span>รีเฟรชฐานข้อมูล</span>
@@ -476,7 +446,7 @@ export default function App() {
           <div className="min-h-[400px] flex flex-col items-center justify-center gap-3">
             <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
             <p className="text-xs font-medium text-slate-600">
-              กำลังเชื่อมต่อฐานข้อมูล Firebase ({PROJECTS_COLLECTION})...
+              กำลังเชื่อมต่อฐานข้อมูล ({PROJECTS_COLLECTION})...
             </p>
           </div>
         ) : (

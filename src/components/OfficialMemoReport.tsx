@@ -27,10 +27,7 @@ export const OfficialMemoReport: React.FC<OfficialMemoReportProps> = ({
   const [subject, setSubject] = useState(
     'รายงานผลการดำเนินงานและติดตามการใช้จ่ายงบลงทุน ฝ่ายพัสดุและทรัพย์สิน กองคลัง ประจำปีงบประมาณ พ.ศ. ๒๕๗๐'
   );
-  const [reporterName, setReporterName] = useState('นางสาวศิริพร บุญเสริม');
-  const [reporterPosition, setReporterPosition] = useState('เจ้าหน้าที่ฝ่ายพัสดุและทรัพย์สิน');
-  const [directorName, setDirectorName] = useState('นางสาววรรณภา วรรณสถิตย์');
-  const [executiveName, setExecutiveName] = useState('นายภาคิน ติณวัฒน์');
+  const [reporterPosition] = useState('เจ้าหน้าที่ฝ่ายพัสดุและทรัพย์สิน');
 
   const filteredProjects = projects.filter((p) => {
     if (selectedFiscalYear === 'all') return true;
@@ -303,12 +300,12 @@ export const OfficialMemoReport: React.FC<OfficialMemoReportProps> = ({
           {/* Signature Block: Exactly 3 Positions as requested by User */}
           <div className="mt-12 pt-4 border-t border-slate-300">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center text-xs md:text-sm">
-              {/* Position 1: ผู้รายงาน (เจ้าหน้าที่ฝ่ายพัฒนารายได้ / ฝ่ายพัสดุและทรัพย์สิน) */}
+              {/* Position 1: ผู้รายงาน */}
               <div className="space-y-1">
                 <p className="font-semibold text-slate-700">ผู้รายงาน</p>
                 <div className="pt-10">
                   <p>(ลงชื่อ).......................................................</p>
-                  <p className="font-medium mt-1">({reporterName})</p>
+                  <p className="font-medium mt-1">(.......................................................)</p>
                   <p className="text-slate-600 text-xs">{reporterPosition}</p>
                   <p className="text-slate-600 text-xs mt-1">วันที่ ......../......../........</p>
                 </div>
@@ -319,7 +316,7 @@ export const OfficialMemoReport: React.FC<OfficialMemoReportProps> = ({
                 <p className="font-semibold text-slate-700">ผู้ตรวจสอบ</p>
                 <div className="pt-10">
                   <p>(ลงชื่อ).......................................................</p>
-                  <p className="font-medium mt-1">({directorName})</p>
+                  <p className="font-medium mt-1">(.......................................................)</p>
                   <p className="text-slate-600 text-xs">ผู้อำนวยการกองคลัง</p>
                   <p className="text-slate-600 text-xs mt-1">วันที่ ......../......../........</p>
                 </div>
@@ -330,7 +327,7 @@ export const OfficialMemoReport: React.FC<OfficialMemoReportProps> = ({
                 <p className="font-semibold text-slate-700">ผู้พิจารณาอนุมัติ</p>
                 <div className="pt-10">
                   <p>(ลงชื่อ).......................................................</p>
-                  <p className="font-medium mt-1">({executiveName})</p>
+                  <p className="font-medium mt-1">(.......................................................)</p>
                   <p className="text-slate-600 text-xs">นายกเทศมนตรีเมืองมหาสารคาม</p>
                   <p className="text-slate-600 text-xs mt-1">วันที่ ......../......../........</p>
                 </div>

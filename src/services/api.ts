@@ -36,6 +36,7 @@ import {
 } from '../firebase';
 
 export const PROJECTS_COLLECTION = 'ProcurementandAssetsDepartment';
+const STORAGE_KEY = 'mhk_projects_db_v1';
 
 // Validation constants synced verbatim with firebase-blueprint.json
 const ID_PATTERN = /^[a-zA-Z0-9_\-]+$/;
@@ -215,12 +216,43 @@ function getProjectsQuery(user: User) {
   return query(colRef, where('memberUids', 'array-contains', user.uid));
 }
 
+async function fetchLocalOrServerProjects(): Promise<ProjectItem[]> {
+  try {
+    const res = await fetch('/api/projects');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend server fallback unavailable, using local cache:', err);
+  }
+
+  const cached = localStorage.getItem(STORAGE_KEY);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PROJECTS));
+  return INITIAL_PROJECTS;
+}
+
 async function seedInitialProjects(user: User): Promise<void> {
   if (seededUids.has(user.uid)) return;
   seededUids.add(user.uid);
 
+  const seedSource = await fetchLocalOrServerProjects();
   const batch = writeBatch(db);
-  for (const item of INITIAL_PROJECTS) {
+  for (const item of seedSource) {
     const sanitized = sanitizeProjectFields(
       { ...item, ownerUid: user.uid, memberUids: [user.uid] },
       user.uid
@@ -264,6 +296,7 @@ export function subscribeToProjects(
       const items = snapshot.docs
         .map(docToProjectItem)
         .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       onData(items);
     },
     (error) => {
@@ -279,7 +312,7 @@ export function subscribeToProjects(
 export async function fetchProjects(user?: User | null): Promise<ProjectItem[]> {
   const activeUser = user || auth.currentUser;
   if (!activeUser || !activeUser.emailVerified) {
-    return [];
+    return await fetchLocalOrServerProjects();
   }
 
   try {
@@ -287,13 +320,17 @@ export async function fetchProjects(user?: User | null): Promise<ProjectItem[]> 
     if (snapshot.empty && !seededUids.has(activeUser.uid)) {
       await seedInitialProjects(activeUser);
       const seededSnap = await getDocs(getProjectsQuery(activeUser));
-      return seededSnap.docs
+      const seededItems = seededSnap.docs
         .map(docToProjectItem)
         .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(seededItems));
+      return seededItems;
     }
-    return snapshot.docs
+    const items = snapshot.docs
       .map(docToProjectItem)
       .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    return items;
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, PROJECTS_COLLECTION);
   }
@@ -304,9 +341,25 @@ export async function saveProject(
   isNew: boolean,
   existingProject?: ProjectItem | null
 ): Promise<ProjectItem> {
+  // Always update local cache & server API mirror for instant responsiveness
+  const cached = localStorage.getItem(STORAGE_KEY);
+  let list: ProjectItem[] = cached ? JSON.parse(cached) : [];
+  if (isNew) {
+    list = [project, ...list];
+  } else {
+    list = list.map((p) => (p.id === project.id ? project : p));
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+
+  fetch(isNew ? '/api/projects' : `/api/projects/${project.id}`, {
+    method: isNew ? 'POST' : 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(project),
+  }).catch(() => {});
+
   const user = auth.currentUser;
   if (!user || !user.emailVerified) {
-    throw new Error('กรุณาเชื่อมต่อบัญชี Google ก่อนบันทึกข้อมูลลงฐานข้อมูล Firebase');
+    return project;
   }
 
   const sanitized = sanitizeProjectFields(project, user.uid);
@@ -327,7 +380,6 @@ export async function saveProject(
       const isAlreadyCompleted = existingProject?.projectStatus === 'ดำเนินการแล้วเสร็จ';
 
       if (isAlreadyCompleted && !isAdmin) {
-        // Post-completion closure action allows only guaranteeStatus, disbursementStatus, remarks, updatedBy, updatedAt
         await updateDoc(docRef, {
           guaranteeStatus: sanitized.guaranteeStatus,
           disbursementStatus: sanitized.disbursementStatus,
@@ -336,7 +388,6 @@ export async function saveProject(
           updatedAt: serverTimestamp(),
         });
       } else {
-        // Active project update (omits immutable fields id, ownerUid, createdAt)
         const {
           id: _id,
           ownerUid: _ownerUid,
@@ -363,9 +414,17 @@ export async function saveProject(
 }
 
 export async function removeProject(id: string): Promise<void> {
+  const cached = localStorage.getItem(STORAGE_KEY);
+  if (cached) {
+    const list: ProjectItem[] = JSON.parse(cached);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list.filter((p) => p.id !== id)));
+  }
+
+  fetch(`/api/projects/${id}`, { method: 'DELETE' }).catch(() => {});
+
   const user = auth.currentUser;
   if (!user || !user.emailVerified) {
-    throw new Error('กรุณาเชื่อมต่อบัญชี Google ก่อนลบข้อมูลในฐานข้อมูล Firebase');
+    return;
   }
 
   const safeId = sanitizeId(id);
@@ -381,9 +440,26 @@ export async function bulkSaveProjects(
   projects: ProjectItem[],
   mode: 'append' | 'replace'
 ): Promise<ProjectItem[]> {
+  const cached = localStorage.getItem(STORAGE_KEY);
+  let list: ProjectItem[] = cached ? JSON.parse(cached) : [];
+  if (mode === 'replace') {
+    list = projects;
+  } else {
+    const existingIds = new Set(list.map((p) => p.id));
+    const toAdd = projects.filter((p) => !existingIds.has(p.id));
+    list = [...toAdd, ...list];
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+
+  fetch('/api/projects/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projects, mode }),
+  }).catch(() => {});
+
   const user = auth.currentUser;
   if (!user || !user.emailVerified) {
-    throw new Error('กรุณาเชื่อมต่อบัญชี Google ก่อนนำเข้าข้อมูลสู่ฐานข้อมูล Firebase');
+    return list;
   }
 
   try {
